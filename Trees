@@ -1,0 +1,383 @@
+int[][] genom = new int[16][4];                // Геном: номер гена, направление гена
+int cellsX;                                    // Количество ячеек поля по оси X
+int cellsY;                                    // Количество ячеек поля по оси Y
+int id = 1;                                    // Номер дерева
+int[][] cell;                                  // Состояние ячейки: коордирата X,Y (0 - пустая, 1 - семечка, 2 - дерево, 3 - падающая семечка)
+int[][] light;                                 // Уровень освещения ячейки
+int[][][] genomtree;                           // Геном конкретной ячейки: id дерева, номер гена, направление гена
+int[][] activegen;                             // Активный ген ячейки: координата X, Y
+int[][] energycell;                            // Количество энергии ячейки
+int[] energytree;                              // Количество энергии у дерева
+int[] life;                                    // Предельний возвраст дерева
+int lightcount = 1;                            // Счетчик слоев освещения
+int[][] cellid;                                // id ячейки
+int tempgen;                                   // Временная переменная рандома, для определения шанса мутации гена
+int countlife[];                               // Счеткик прожитого времени каждого дерева
+void setup()
+{
+  size(1500,1000);                             // Размер поля
+  cellsX = 1500/10;                            // Определяем количество ячеек по координате X
+  cellsY = 1000/10;                            // Определяем количество ячеек по координате Y
+  for (int i = 0; i < 16; i++) {               // Заполняем начальний геном случайными значениями
+    for (int j = 0; j < 4; j++) {
+      genom[i][j] = int(random(64));
+    }
+  }
+  
+  
+  
+  cell = new int[cellsX][cellsY];              // Инициализируем массив состояния ячейки
+  light = new int[cellsX][cellsY];             // Инициализируем массив освещенности
+  genomtree = new int[2000][16][4];            // Инициализируем массив генома ячейки
+  activegen = new int[cellsX][cellsY];         // Инициализируем массив активного гена ячейки
+  energycell = new int[cellsX][cellsY];        // Инициализируем массив енергии ячеек
+  energytree = new int[2000];                  // Инициализируем массив энергии дерева
+  life = new int[2000];                        // Инициализируем массив продолжительности жизни деревьев
+  cellid = new int[cellsX][cellsY];            // Инициализируем массив id ячейки
+  countlife = new int[2000];                   // Инициализируем массив счетчика жизни дерева
+  
+  
+  
+  for (int i = 0; i < cellsX; i++)              // Рисуем сетку клеток
+  {
+    for (int j = 0; j < cellsY; j++)
+    {
+      fill(180);
+      rect(i*10,j*10,10,10);
+    }
+  }
+  
+  
+  for (int i = 0; i < cellsX; i++)              // Задаем освещенность поля
+  {
+    for (int j = 0; j < cellsY; j++)
+    {
+      light[i][j] = cellsY-j+5;
+    }
+  }
+  
+  
+  cell[cellsX/2][cellsY-1] = 1;                       // Начальная семечка
+  activegen[cellsX/2][cellsY-1] = 0;                  // Устанавливаем начальный ген
+  genomtree[1] = genom;                               // Устанавливаем начальный геном
+  energycell[cellsX/2][cellsY-1] = 300;               // Энергия начальной семечки
+  energytree[1] = 300;                                // Энергия начального дерева
+  life[1] = 92 - int(random(93)) - int(random(89));   // Продолжительность жизни стартового дерева
+  cellid[cellsX/2][cellsY-1]=1;                       // id стартового дерева
+
+  
+  
+}
+
+
+void draw()                                          
+{
+ // println(id);
+  for (int idt = 1; idt < 2000; idt++)                // Прибавляем год жизни каждому дереву
+  {
+    countlife[idt]++;
+  }
+  
+  
+  plusenergy();                                        // Метод добавляющий энергию клеткам
+  minusenergy();                                       // Метод траты энергии
+  killtree();                                          // Метод убивающий деревья
+  rost();                                              // Метод обработки роста деревьев
+  
+  fallingtrees();                                      // Метод обробатывающий падение семечек
+  
+ // println(countlife[1]);
+ // println(energycell[cellsX/2][cellsY-1]);
+  
+  
+  
+  for (int i = 0; i < cellsX; i++)               // Отрисовываем все
+  {
+    for (int j = 0; j < cellsY; j++)
+    {
+      if (cell[i][j] == 0)                        // Есди статус ячейки 0 цвет заливки серый
+      {
+        fill(180);
+      }
+      if (cell[i][j] == 1)                        // Есди статус ячейки 1 цвет заливки белый
+      {
+        fill(255);
+      }
+      if (cell[i][j] == 2)                        // Есди статус ячейки 2 цыет заливки зеленый
+      {
+        fill(0,255,0);
+      }
+      rect(i*10,j*10,10,10);                      // Рисуем клетки
+    }
+  }
+}
+
+
+
+void plusenergy()                                        // Метод добавляющий энергию клеткам
+{
+  for (int i = 0; i < cellsX; i++)
+  {
+    lightcount = 1;
+    for (int j = 0; j < cellsY; j++)
+    {
+      if (lightcount < 4 && cell[i][j] > 0)
+      {
+        energycell[i][j] += light[i][j]*(4-lightcount);      // Получают энергию только клетки над которыми не больше 3-х других с множителем
+      }
+    }
+  }
+}
+
+
+
+
+void minusenergy()                                          // Метод траты энергии
+{
+  for (int i = 0; i < cellsX; i++)
+  {
+    for (int j = 0; j < cellsY; j++)
+    {
+      if (cell[i][j] == 2)
+      {
+        energycell[i][j] -= 13;
+      }
+    }
+  }
+}
+
+
+
+
+
+void calcenergytree(int id)                                  // Метод подсчета общей енергии дерева
+{
+  energytree[id] = 0;
+  for (int i = 0; i < cellsX; i++) 
+  {
+    for (int j = 0; j < cellsY; j++)
+    {
+      if (cellid[i][j] == id) 
+      {
+        energytree[id] += energycell[i][j];
+      }
+    }
+  }
+}
+
+
+
+void killtree()                                              // Метод убийства деревьев
+{
+  for (int idt = 1; idt < 2000; idt++)                        // Проходимся по всем деревьям
+  {
+    if (life[idt] < countlife[idt])                           // Проверяем не живут ли они дольше положенного
+    {
+      countlife[idt] = 0;
+      for (int i = 0; i < cellsX; i++)
+      {
+        for (int j = 0; j < cellsY; j++)
+        {
+          if (cellid[i][j] == idt && cell[i][j] == 2)          // Если в ячейке дерево которое нужно убить - убиваем
+          {
+            cell[i][j] = 0;                                    // Сбрасываем все параметры ячейки
+            energycell[i][j] = 0;
+            cellid[i][j] = 0;
+            energytree[idt]=0;
+          }
+          if (cellid[i][j] == idt && cell[i][j] == 1)          // Если в ячейкес id убиваемого дерева находиться семечка - ставим ей статус падающей и присваиваем следующий id нового дерева
+          {
+            id++;
+            if (id == 2000)                                    // Если id дошел до 2000, начинаем счетчик заново
+            {
+              id = 1;
+            }
+            
+            cellid[i][j] = id;                                  // Задаем новый id семечке
+            life[id] = 92 - int(random(93)) - int(random(89));  // Задаем продолжительность жизни
+            cell[i][j] = 3;                                     // Меняем статус на падающую
+            activegen[i][j]=0;                                  // Устанавливаем активный ген на 0
+            energycell[i][j] = 1;                               // Даем начальную энергию - 1
+            
+            genomtree[id] = genomtree[id-1];                    // копируем геном в новое дерево
+            tempgen = int(random(100));
+            if (tempgen == 10)                                  // Устанавливаем шанс мутации на 1%
+            {
+              genomtree[id][int(random(16))][int(random(4))] = int(random(64)); // Если выпала мутация меняем один ген на случайное число
+              
+            }
+            
+          }
+        }
+      }
+    }
+    calcenergytree(idt);                                        // Вызываем метод подсчета енергии у всего дерева
+    if (energytree[idt] < 0)                                    // Если закончилась энергия убиваем дерево
+    {
+      countlife[idt] = 0;                                       // С\брасываем счетчик жизни дерева
+      for (int i = 0; i < cellsX; i++)
+      {
+        for (int j = 0; j < cellsY; j++)
+        {
+          if (cellid[i][j] == idt)
+          {
+            cell[i][j] = 0;                                      // Сбрасываем параметры дерева
+            energycell[i][j] = 0;
+            cellid[i][j] = 0;
+          }
+        }
+      }
+    }
+  }
+}
+
+
+
+
+
+void fallingtrees()                                              // Метод обработки падающей семечки
+{
+  for (int idt = 1; idt <=2000; idt++)                           // Пробегаемся по всем деревьям
+  {
+    for (int i = 0; i < cellsX; i++)
+    {
+      for (int j = 0; j < cellsY; j++)
+      {
+        if (cell[i][j] == 3)                                      // Если сттус падающей семечки
+        {
+          if (j != cellsY-1)                                      // Проверяем не является ли текущая клетка самой нижней
+          {
+            if (cellid[i][j] == idt)
+            {
+              if (cell[i][j+1] == 0)                              // Проверяем нет ли чего-то в клетке снизу
+              {
+                cellid[i][j+1] = cellid[i][j];                    // Копируем нашу клетку на клутку снизу
+                cell[i][j+1] = cell[i][j];
+                energycell[i][j+1] = energycell[i][j];
+                activegen[i][j+1] = activegen[i][j];
+                energycell[i][j+1] = energycell[i][j] - 1 ;
+        //        fill(0,0,255);
+        //        rect(i*10,(j+1)*10,10,10);
+              }
+        //      fill(255);
+        //      rect(i*10,j*10,10,10);
+              cellid[i][j] = 0;                                    // Очищаем декущую клетку
+              cell[i][j] = 0;
+              energycell[i][j] = 0;
+            }
+          } else                                                    // Если самая нижняя ставим статус семечки на нашу ячейку
+          {
+            if (cellid[i][j] == idt)
+            {
+              cell[i][j] = 1;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+
+
+
+
+void rost()                                              // Метод обработки роста деревьев
+{
+  for (int i = 0; i < cellsX; i++)
+  {
+    for (int j = 0; j < cellsY; j++)
+    {
+   //   if (cell[i][j] == 1)
+      if (cell[i][j] == 1 && energycell[i][j] > 17)      // если в клетке семечка и  у нее хватает энергии для роста
+      {
+        if (i-1 < 0)                                     // Условия для замкнутости поля
+        {
+           if (cell[cellsX-1][j] == 0)
+        {
+          if (genomtree[cellid[i][j]][activegen[i][j]][0] >= 0 && genomtree[cellid[i][j]][activegen[i][j]][0] <16)    //  Выполняем только если у нас активный ген влево
+          {
+            activegen[cellsX-1][j] = genomtree[cellid[i][j]][activegen[i][j]][0];                                      // Устанавливаем активный ген для новой семечки
+            cellid[cellsX-1][j] = cellid[i][j];                      // Присваеваем ей id дерева
+            cell[cellsX-1][j] = 1;                                    // Устанавливаем статус семечки для новой ячейки
+            cell[i][j] = 2;                                          // Устанавливем статус дерева для ячейки с которой выросли
+            energycell[cellsX-1][j] = 0;                              // Устанавливаем энергию семечки на 0 
+          }
+        }
+        } else                                                      // Тоже что и выше но с переносом на другую сторону поля
+        {
+        if (cell[i-1][j] == 0) 
+        {
+          if (genomtree[cellid[i][j]][activegen[i][j]][0] >= 0 && genomtree[cellid[i][j]][activegen[i][j]][0] <16)    
+          {
+            activegen[i-1][j] = genomtree[cellid[i][j]][activegen[i][j]][0];
+            cellid[i-1][j] = cellid[i][j];
+            cell[i-1][j] = 1;
+            cell[i][j] = 2;
+            energycell[i-1][j] = 0;
+            
+          }
+        }
+        }
+        
+        if (j-1 >=0 )
+        {
+        if (cell[i][j-1] == 0)
+        {
+        if (genomtree[cellid[i][j]][activegen[i][j]][1] >= 0 && genomtree[cellid[i][j]][activegen[i][j]][1] <16)      //  Выполняем только если у нас активный ген вверх
+          {
+            activegen[i][j-1] = genomtree[cellid[i][j]][activegen[i][j]][1];
+            cellid[i][j-1] = cellid[i][j];
+            cell[i][j-1] = 1;
+            cell[i][j] = 2;
+            energycell[i][j-1] = 0;
+          }
+        }
+        }
+        
+        if (i+1 >= cellsX)
+        {
+          if (cell[0][j] == 0)
+        {
+        if (genomtree[cellid[i][j]][activegen[i][j]][2] >= 0 && genomtree[cellid[i][j]][activegen[i][j]][2] <16)      //  Выполняем только если у нас активен ген вправо
+          {
+            activegen[0][j] = genomtree[cellid[i][j]][activegen[i][j]][2];
+            cellid[0][j] = cellid[i][j];
+            cell[0][j] = 1;
+            cell[i][j] = 2;
+            energycell[0][j] = 0;
+          }
+        }
+        } else
+        {
+        if (cell[i+1][j] == 0)
+        {
+        if (genomtree[cellid[i][j]][activegen[i][j]][2] >= 0 && genomtree[cellid[i][j]][activegen[i][j]][2] <16)
+          {
+            activegen[i+1][j] = genomtree[cellid[i][j]][activegen[i][j]][2];
+            cellid[i+1][j] = cellid[i][j];
+            cell[i+1][j] = 1;
+            cell[i][j] = 2;
+            energycell[i+1][j] = 0;
+          }
+        }
+        }
+        
+        if (j+1 < cellsY)
+          {
+            if (cell[i][j+1] == 0)
+            {
+            if (genomtree[cellid[i][j]][activegen[i][j]][3] >= 0 && genomtree[cellid[i][j]][activegen[i][j]][3] <16)    //  Выполняем только если у нас активный ген вниз
+              {
+              activegen[i][j+1] = genomtree[cellid[i][j]][activegen[i][j]][3];
+              cellid[i][j+1] = cellid[i][j];
+              cell[i][j+1] = 1;
+              cell[i][j] = 2;
+              energycell[i][j+1] = 0;
+            }
+          }
+        }
+      }
+    }
+  }
+}
